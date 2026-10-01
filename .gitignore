@@ -1,0 +1,36 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+
+# PKI / secrets (never commit)
+pki/
+*.key
+*.pem
+*.p12
+*.crl
+*.csr
+*.psk
+.env
+.vault_pass*
+secrets.yml
+
+# VM images
+*.iso
+*.vhdx
+*.avhdx
+
+# Ansible
+*.retry
+
+# OS / editor
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
+
+# Raw captures (curated ones go in docs/ explicitly)
+tests/**/*.pcap*
