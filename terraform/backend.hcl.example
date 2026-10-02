@@ -1,0 +1,3 @@
+bucket = "hybrid-ipsec-vpn-tfstate-<ACCOUNT_ID>"
+key    = "hybrid-ipsec-vpn/terraform.tfstate"
+region = "us-east-1"

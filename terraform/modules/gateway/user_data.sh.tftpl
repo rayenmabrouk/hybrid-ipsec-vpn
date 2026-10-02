@@ -1,0 +1,26 @@
+#!/bin/bash
+# gw-aws bootstrap: routing, NAT for the private subnet, strongSwan packages.
+# IPsec configuration and certificates are deployed separately (Ansible).
+set -euxo pipefail
+hostnamectl set-hostname gw-aws
+
+echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-ipsec-gw.conf
+sysctl --system
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y nftables charon-systemd strongswan-swanctl strongswan-pki \
+  libstrongswan-extra-plugins libcharon-extra-plugins
+
+cat > /etc/nftables.conf <<'NFT'
+#!/usr/sbin/nft -f
+flush ruleset
+table ip nat {
+  chain postrouting {
+    type nat hook postrouting priority srcnat; policy accept;
+    # Private subnet -> Internet is masqueraded; private subnet -> on-prem goes through IPsec un-NATed
+    ip saddr ${private_subnet_cidr} ip daddr != ${onprem_cidr} masquerade
+  }
+}
+NFT
+systemctl enable --now nftables

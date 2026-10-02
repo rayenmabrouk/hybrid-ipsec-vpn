@@ -1,0 +1,3 @@
+onprem_public_ip = "203.0.113.10"
+alarm_email      = "you@example.com"
+flow_logs_bucket_name = "hybrid-ipsec-vpn-flowlogs-<ACCOUNT_ID>"

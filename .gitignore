@@ -34,3 +34,6 @@ Thumbs.db
 
 # Raw captures (curated ones go in docs/ explicitly)
 tests/**/*.pcap*
+tfplan
+
+backend.hcl
