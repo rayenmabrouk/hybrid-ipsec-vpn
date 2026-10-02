@@ -96,3 +96,35 @@
 **Correctif apporté** : par défaut `keyingtries = 1`, si bien qu'après une panne longue l'initiateur abandonnait. Il passe à `keyingtries = 0` (essais illimités) côté initiateur dans le rôle `strongswan`.
 
 **Seule étape manuelle restante** : après une reconstruction complète (T10), le topic SNS est recréé, donc l'abonnement courriel doit être reconfirmé (lien reçu par courriel). Ce comportement est imposé par AWS et ne peut pas être automatisé.
+
+## Tests de sécurité T8, T6, T11, T9, T1 (02/10/2026)
+
+### T8 — Tentative de négociation affaiblie (downgrade)
+gw-onprem propose à gw-aws une suite classique et faible : `aes128-sha256-modp2048`, sans ML-KEM (`tests/configs/t8-downgrade.conf`).
+**Résultat** : gw-aws répond dès IKE_SA_INIT par `N(NO_PROP)` (36 octets), puis `received NO_PROPOSAL_CHOSEN notify error`. Aucune authentification n'est tentée. Le tunnel de production reste ESTABLISHED.
+**Conclusion** : un attaquant ne peut pas forcer un repli vers la cryptographie classique (ANSSI R4/R8).
+
+### T6 — Usurpation avec un certificat d'une autre AC
+Une AC « Rogue Root CA » (ECDSA P-384), créée hors de la PKI du projet, émet un certificat portant exactement l'identité `gw-onprem.vpn.internal`. gw-onprem s'authentifie avec ce certificat et les propositions hybrides légitimes (`tests/configs/t6-rogue-ca.conf`).
+**Résultat** : l'échange hybride ECP-384 + ML-KEM-768 aboutit, mais gw-aws renvoie `N(AUTH_FAILED)`. Son journal indique `no issuer certificate found` / `issuer is "C=TN, O=Rogue CA, CN=Rogue Root CA"` : aucune chaîne de confiance vers « Hybrid IPsec VPN Root CA ».
+**Conclusion** : l'échange de clés post-quantique protège la confidentialité, la PKI protège l'authentification. Les deux couches sont indépendantes. Les clés et l'AC de test ont été supprimées de gw-onprem.
+
+### T11 — Échange hybride visible (RFC 9370 / RFC 9242)
+Dans la trace de T6, on voit IKE_SA_INIT (ECP-384, 312 octets), puis `IKE_INTERMEDIATE request 1 [ KE ]` portant la clé ML-KEM-768 (1249 octets, fragmentés en `EF(1/2)` et `EF(2/2)` selon la RFC 7383), puis IKE_AUTH. La suite négociée est `AES_GCM_16_256/PRF_HMAC_SHA2_384/ECP_384/KE1_ML_KEM_768`.
+
+### T9 — Surface d'exposition de l'EIP
+- nmap TCP (1000 ports) : tous `filtered`. Aucun service exposé ; l'administration passe exclusivement par SSM.
+- nmap UDP : `open|filtered` partout, donc non concluant (nmap ne distingue pas un rejet silencieux d'un service muet).
+- Preuve par les VPC Flow Logs (S3), source = IP publique du site : `tcp/* REJECT` (1997 enregistrements) ; `udp/53`, `udp/123`, `udp/161` REJECT ; `udp/500` et `udp/4500` ACCEPT.
+- Security Group : seuls UDP 500 et 4500 depuis l'IP publique du site en /32, plus tout le trafic du sous-réseau privé 10.20.2.0/24.
+
+### T1 — Confidentialité sur le WAN
+- tcpdump sur gw-onprem : en clair sur eth1 (LAN, ICMP et HTTP), uniquement `UDP-encap: ESP(spi=…)` en sortie sur eth0 (WAN).
+- Piège identifié : tcpdump sur eth0 affiche aussi les paquets *entrants* déchiffrés. Ils ont le même horodatage que le paquet ESP qui les précède et le même numéro de séquence. C'est la réinjection du noyau après traitement XFRM, pas une fuite sur le fil.
+- Preuve sur le fil : Wireshark sur l'hôte, interface `vEthernet (LAB-WAN)`, donc hors de la VM. Le filtre `icmp || http` ne renvoie rien. Tous les paquets sont `eth:ip:udp:udpencap:esp`, avec les SPI 0xcbabfee6 / 0xc4097dca, identiques à ceux journalisés par gw-aws pour `lan{3}`.
+
+## Incident — Remappage NAT après redémarrage de l'hôte (02/10/2026, ~11:08)
+- **Cause** : le PC hôte a redémarré. Hyper-V a sauvegardé puis restauré les VM, donc la session IKE a été conservée côté gw-onprem, mais WinNAT a été reconstruit. Le flux UDP 4500 est sorti par un nouveau port externe (50852 → 59174).
+- **Déroulement** : gw-aws avait une requête DPD en cours (ID 29) et l'a retransmise vers l'ancien port. gw-onprem a détecté le changement de NAT et envoyé une mise à jour MOBIKE (`UPD_SA_ADDR`), que gw-aws a appliquée (« remote endpoint changed »). Mais strongSwan retransmet le paquet d'origine tel quel : la requête 29 est restée sans réponse, et à 11:10:20 gw-aws a supprimé l'IKE_SA (`dpd_action = clear`). gw-onprem a ensuite sondé une SA inexistante (retransmissions visibles dans Wireshark), puis a reconstruit le tunnel à 11:13:05 (`dpd_action = restart`), toujours en mode hybride.
+- **Impact** : environ 3 min d'interruption, reprise sans intervention humaine.
+- **Piste d'amélioration** : réduire le délai de détection (`charon.retransmit_timeout` et `charon.retransmit_tries`), au prix de plus de sensibilité aux pertes ponctuelles.
