@@ -1,0 +1,62 @@
+# The private key is generated on the gateway and never leaves it. Only the CSR goes to the
+# offline CA (admin workstation); only the signed certificate comes back.
+
+- name: Generate the gateway private key (ECDSA P-384) if missing
+  ansible.builtin.shell: umask 077 && pki --gen --type ecdsa --size 384 --outform pem > {{ pki_key }}
+  args:
+    creates: "{{ pki_key }}"
+
+- name: Build a CSR from the gateway key
+  ansible.builtin.command: >-
+    pki --req --type priv --in {{ pki_key }}
+    --dn "C=TN, O=Hybrid IPsec VPN, CN={{ pki_identity }}"
+    --san {{ pki_identity }} --digest sha384 --outform pem
+  register: pki_csr
+  changed_when: false
+
+- name: Hand the CSR to the CA
+  ansible.builtin.copy:
+    content: "{{ pki_csr.stdout }}\n"
+    dest: "{{ pki_controller_dir }}/{{ inventory_hostname }}.csr"
+    mode: "0644"
+  delegate_to: localhost
+  become: false
+  changed_when: false # ECDSA signatures are randomized: the CSR differs each run although the key is unchanged
+
+- name: Sign the CSR if the certificate is missing, expiring or issued for another key
+  ansible.builtin.command: "{{ role_path }}/files/sign-if-needed.sh {{ pki_controller_dir }} {{ inventory_hostname }}"
+  register: pki_sign
+  changed_when: "'signed' in pki_sign.stdout"
+  delegate_to: localhost
+  become: false
+
+- name: Install the CA certificate
+  ansible.builtin.copy:
+    src: "{{ pki_controller_dir }}/ca.crt"
+    dest: /etc/swanctl/x509ca/lab-ca.crt
+    mode: "0644"
+  notify: Reload swanctl
+
+- name: Install the gateway certificate
+  ansible.builtin.copy:
+    src: "{{ pki_controller_dir }}/{{ inventory_hostname }}.crt"
+    dest: "/etc/swanctl/x509/{{ inventory_hostname }}.crt"
+    mode: "0644"
+  notify: Reload swanctl
+
+# Revocation: the offline CA publishes lab-ca.crl (pki --signcrl). Every gateway loads it, so a
+# revoked certificate is refused during IKE_AUTH even though it is signed by the right CA.
+- name: Check whether the CA has published a CRL
+  ansible.builtin.stat:
+    path: "{{ pki_controller_dir }}/lab-ca.crl"
+  register: pki_crl
+  delegate_to: localhost
+  become: false
+
+- name: Install the CRL
+  ansible.builtin.copy:
+    src: "{{ pki_controller_dir }}/lab-ca.crl"
+    dest: /etc/swanctl/x509crl/lab-ca.crl
+    mode: "0644"
+  when: pki_crl.stat.exists
+  notify: Reload swanctl

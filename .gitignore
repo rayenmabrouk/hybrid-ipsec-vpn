@@ -7,7 +7,7 @@
 crash.log
 
 # PKI / secrets (never commit)
-pki/
+/pki/
 *.key
 *.pem
 *.p12

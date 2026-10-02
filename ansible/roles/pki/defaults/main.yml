@@ -1,0 +1,2 @@
+pki_identity: "{{ inventory_hostname }}.{{ pki_domain }}"
+pki_key: "/etc/swanctl/private/{{ inventory_hostname }}.key"
