@@ -1,0 +1,12 @@
+# On-premises hosts (Hyper-V), reached over SSH using ~/.ssh/config (client-onprem via ProxyJump gw-onprem)
+all:
+  children:
+    onprem:
+      hosts:
+        gw-onprem:
+        gw-lab-b:
+        client-onprem:
+    gateways:
+      hosts:
+        gw-onprem:
+        gw-lab-b:

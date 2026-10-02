@@ -1,0 +1,23 @@
+- name: Install strongSwan
+  ansible.builtin.apt:
+    name: "{{ strongswan_packages }}"
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Deploy the site-to-site connection
+  ansible.builtin.template:
+    src: site-to-site.conf.j2
+    dest: /etc/swanctl/conf.d/site-to-site.conf
+    mode: "0644"
+  notify: Reload swanctl
+
+- name: Remove the manual lab configuration (the mode is now selected by vpn_remote_site)
+  ansible.builtin.file:
+    path: /etc/swanctl/lab
+    state: absent
+
+- name: Enable strongSwan
+  ansible.builtin.service:
+    name: strongswan
+    enabled: true
+    state: started

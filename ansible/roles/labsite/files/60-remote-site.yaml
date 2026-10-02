@@ -1,0 +1,5 @@
+network:
+  version: 2
+  dummy-devices:
+    dummy0:
+      addresses: [10.20.2.10/32]

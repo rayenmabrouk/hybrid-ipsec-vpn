@@ -1,0 +1,6 @@
+strongswan_packages:
+  - charon-systemd
+  - strongswan-swanctl
+  - strongswan-pki
+  - libstrongswan-extra-plugins
+  - libcharon-extra-plugins

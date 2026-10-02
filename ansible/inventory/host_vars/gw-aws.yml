@@ -1,0 +1,11 @@
+ipsec_role: responder
+ipsec_local_addrs: "%any"
+ipsec_remote_addrs: "%any" # on-prem site is behind NAT; identity enforced by certificate, source IP by the security group
+ipsec_peer: gw-onprem
+ipsec_local_ts: "{{ remote_cidr }}"
+ipsec_remote_ts: "{{ onprem_cidr }}"
+
+ip_forward: true
+nat_masquerade:
+  - src: "{{ aws_private_cidr }}"
+    exclude: "{{ onprem_cidr }}"

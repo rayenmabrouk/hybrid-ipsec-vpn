@@ -1,0 +1,19 @@
+# Which remote site gw-onprem connects to: "aws" (production path) or "lab" (offline demo)
+vpn_remote_site: aws
+
+onprem_cidr: 10.10.0.0/24
+remote_cidr: 10.20.0.0/16
+aws_private_cidr: 10.20.2.0/24
+remote_app_ip: 10.20.2.10
+
+# Crypto (ANSSI DAT-NT-003 R8/R12-R16 + ANSSI-FT-117 hybrid post-quantum key exchange)
+ipsec_ike_proposal: aes256gcm16-prfsha384-ecp384-ke1_mlkem768
+ipsec_esp_proposal: aes256gcm16-ecp384-ke1_mlkem768
+ipsec_dpd_delay: 30s
+
+# PKI: the CA stays on the admin workstation; identities are <host>.<domain>
+pki_domain: vpn.internal
+pki_controller_dir: "{{ lookup('ansible.builtin.env', 'HOME') }}/ipsec-pki"
+
+# Ubuntu 26.04 defaults to sudo-rs, whose prompt Ansible does not detect; use the original sudo
+ansible_become_exe: sudo.ws

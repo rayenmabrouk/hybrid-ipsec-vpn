@@ -1,0 +1,21 @@
+# gw-lab-b plays the remote site in offline demo mode: 10.20.2.10 on a dummy interface + nginx.
+- name: Declare the remote-site address on a dummy interface
+  ansible.builtin.copy:
+    src: 60-remote-site.yaml
+    dest: /etc/netplan/60-remote-site.yaml
+    mode: "0600"
+  notify: Apply netplan
+
+- name: Install nginx
+  ansible.builtin.apt:
+    name: nginx
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Deploy the demo page
+  ansible.builtin.copy:
+    dest: /var/www/html/index.html
+    mode: "0644"
+    content: |
+      <h1>Site B (labo) - application 10.20.2.10</h1>
+      <p>Servi par {{ inventory_hostname }} via le tunnel IPsec (mode démonstration hors ligne)</p>

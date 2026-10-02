@@ -1,0 +1,14 @@
+# AWS hosts, discovered from EC2 tags and reached through SSM Session Manager (no SSH port)
+plugin: amazon.aws.aws_ec2
+regions:
+  - us-east-1
+filters:
+  tag:Project: hybrid-ipsec-vpn
+  instance-state-name: running
+hostnames:
+  - tag:Name
+compose:
+  ansible_aws_ssm_instance_id: instance_id
+groups:
+  aws: "true"
+  gateways: "ec2_tags.Name == 'gw-aws'"

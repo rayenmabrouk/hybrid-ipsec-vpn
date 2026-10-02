@@ -1,0 +1,6 @@
+ipsec_role: responder
+ipsec_local_addrs: 192.168.100.12
+ipsec_remote_addrs: 192.168.100.11
+ipsec_peer: gw-onprem
+ipsec_local_ts: "{{ remote_cidr }}"
+ipsec_remote_ts: "{{ onprem_cidr }}"

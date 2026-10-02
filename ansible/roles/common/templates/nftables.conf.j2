@@ -1,0 +1,13 @@
+#!/usr/sbin/nft -f
+# {{ ansible_managed }}
+flush ruleset
+
+table ip nat {
+  chain postrouting {
+    type nat hook postrouting priority srcnat; policy accept;
+{% for r in nat_masquerade %}
+    # {{ r.src }} -> Internet is masqueraded; {{ r.src }} -> {{ r.exclude }} goes through IPsec un-NATed
+    {% if r.oif is defined %}oifname "{{ r.oif }}" {% endif %}ip saddr {{ r.src }} ip daddr != {{ r.exclude }} masquerade
+{% endfor %}
+  }
+}

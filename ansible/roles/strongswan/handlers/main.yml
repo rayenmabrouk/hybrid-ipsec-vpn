@@ -1,0 +1,12 @@
+# Responders only reload. The initiator restarts the SA explicitly: when the parsed configuration
+# is unchanged, --load-all does not re-trigger start_action.
+- name: Reload swanctl
+  ansible.builtin.shell: |
+    {% if ipsec_role == 'initiator' %}
+    swanctl --terminate --ike site-to-site >/dev/null 2>&1 || true
+    swanctl --load-all
+    swanctl --initiate --child lan --timeout 30 >/dev/null 2>&1 || true
+    {% else %}
+    swanctl --load-all
+    {% endif %}
+  changed_when: true

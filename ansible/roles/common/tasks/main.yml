@@ -1,0 +1,29 @@
+- name: Install base packages
+  ansible.builtin.apt:
+    name: [nftables, curl]
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Enable IPv4 forwarding
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-ipsec-gw.conf
+    content: "net.ipv4.ip_forward=1\n"
+    mode: "0644"
+  when: ip_forward | default(false)
+  notify: Apply sysctl
+
+- name: Deploy nftables NAT rules
+  ansible.builtin.template:
+    src: nftables.conf.j2
+    dest: /etc/nftables.conf
+    mode: "0755"
+    validate: nft -c -f %s
+  when: nat_masquerade is defined
+  notify: Reload nftables
+
+- name: Enable nftables
+  ansible.builtin.service:
+    name: nftables
+    enabled: true
+    state: started
+  when: nat_masquerade is defined

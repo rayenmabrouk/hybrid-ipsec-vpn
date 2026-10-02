@@ -1,0 +1,12 @@
+ipsec_role: initiator
+ipsec_local_addrs: 192.168.100.11
+ipsec_peer: "{{ 'gw-aws' if vpn_remote_site == 'aws' else 'gw-lab-b' }}"
+ipsec_remote_addrs: "{{ hostvars['gw-aws']['public_ip_address'] if vpn_remote_site == 'aws' else hostvars['gw-lab-b']['ipsec_local_addrs'] }}"
+ipsec_local_ts: "{{ onprem_cidr }}"
+ipsec_remote_ts: "{{ remote_cidr }}"
+
+ip_forward: true
+nat_masquerade:
+  - oif: eth0
+    src: "{{ onprem_cidr }}"
+    exclude: "{{ remote_cidr }}"

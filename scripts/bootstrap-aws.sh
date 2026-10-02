@@ -2,6 +2,7 @@
 # One-time AWS bootstrap (idempotent), run before `terraform init`:
 #  - S3 bucket for the Terraform remote state (versioned, encrypted, private)
 #  - S3 bucket for VPC Flow Logs (encrypted, private, 30-day expiry)
+#  - S3 bucket used by the Ansible SSM connection to transfer files (encrypted, private, 1-day expiry)
 # Both are created outside Terraform: the state bucket must exist before Terraform runs, and the
 # Learner Lab SCP blocks a read that the Terraform aws_s3_bucket resource performs.
 set -euo pipefail
@@ -9,11 +10,12 @@ REGION="${AWS_REGION:-us-east-1}"
 ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
 STATE_BUCKET="hybrid-ipsec-vpn-tfstate-${ACCOUNT}"
 LOGS_BUCKET="hybrid-ipsec-vpn-flowlogs-${ACCOUNT}"
+ANSIBLE_BUCKET="hybrid-ipsec-vpn-ansible-${ACCOUNT}"
 cd "$(dirname "$0")/../terraform"
 
 make_bucket() {
   local b="$1"
-  if aws s3api head-bucket --bucket "$b" 2>/dev/null; then
+  if aws s3api head-bucket --bucket "$b" >/dev/null 2>&1; then
     echo "exists:  $b"
   else
     aws s3api create-bucket --bucket "$b" --region "$REGION" > /dev/null
@@ -31,6 +33,10 @@ aws s3api put-bucket-versioning --bucket "$STATE_BUCKET" --versioning-configurat
 make_bucket "$LOGS_BUCKET"
 aws s3api put-bucket-lifecycle-configuration --bucket "$LOGS_BUCKET" --lifecycle-configuration \
   '{"Rules":[{"ID":"expire-after-30-days","Status":"Enabled","Filter":{},"Expiration":{"Days":30}}]}'
+
+make_bucket "$ANSIBLE_BUCKET"
+aws s3api put-bucket-lifecycle-configuration --bucket "$ANSIBLE_BUCKET" --lifecycle-configuration \
+  '{"Rules":[{"ID":"expire-after-1-day","Status":"Enabled","Filter":{},"Expiration":{"Days":1}}]}'
 
 printf 'bucket = "%s"\nkey    = "hybrid-ipsec-vpn/terraform.tfstate"\nregion = "%s"\n' "$STATE_BUCKET" "$REGION" > backend.hcl
 echo "backend.hcl written; set flow_logs_bucket_name = \"${LOGS_BUCKET}\" in terraform.tfvars"

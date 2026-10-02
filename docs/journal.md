@@ -45,3 +45,16 @@
 - aws_s3_bucket : refus SCP Learner Lab sur s3:GetBucketObjectLockConfiguration → bucket des Flow Logs créé hors Terraform (bootstrap).
 - Ancienne instance d'un autre projet relancée automatiquement à chaque session (coût) → détruite proprement par son propre Terraform.
 - .gitignore sans saut de ligne final → backend.hcl indexé ; corrigé avant commit.
+
+## 2026-10-02 — P3 : automatisation Ansible
+- Contrôleur : WSL, ansible-core 2.21 (pipx) + boto3, collection amazon.aws 11.4.
+- Inventaire hybride : statique (VM on-prem, SSH) + dynamique aws_ec2 (instances découvertes par tags, connexion SSM via un bucket S3 de transfert, sans port SSH).
+- Rôles : common (forwarding, NAT nftables validé par nft -c), strongswan (paquets, connexion swanctl générée par template), pki (clé générée sur la passerelle, CSR → CA hors ligne, signature seulement si certificat absent, expirant ou émis pour une autre clé), labsite (site distant simulé).
+- Une variable choisit le site distant : vpn_remote_site=aws (défaut) ou lab (démonstration hors ligne).
+- Vérification intégrée : SA établie + application atteinte depuis client-onprem.
+- Idempotence prouvée : deuxième exécution changed=0 sur les 4 hôtes.
+
+### Problèmes et solutions
+- Ubuntu 26.04 utilise sudo-rs par défaut ; Ansible ne reconnaît pas son invite → ansible_become_exe: sudo.ws (sudo historique fourni par Ubuntu).
+- Rechargement d'une configuration inchangée : start_action non relancé → le handler initie explicitement la CHILD_SA côté initiateur.
+- CSR différente à chaque exécution (signature ECDSA aléatoire) → tâche marquée sans changement ; la clé reste identique.

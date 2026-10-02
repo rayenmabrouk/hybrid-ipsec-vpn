@@ -1,0 +1,65 @@
+# Full deployment: base system, strongSwan, PKI and IPsec configuration on every gateway,
+# simulated remote site on gw-lab-b, then end-to-end verification.
+# Usage: ansible-playbook site.yml -K                          (on-prem <-> AWS, default)
+#        ansible-playbook site.yml -K -e vpn_remote_site=lab   (offline demo mode)
+
+- name: Configure VPN gateways
+  hosts: gateways
+  become: true
+  pre_tasks:
+    - name: Wait for cloud-init to finish on freshly created AWS instances
+      ansible.builtin.command: cloud-init status --wait
+      changed_when: false
+      when: "'aws' in group_names"
+  roles:
+    - common
+    - strongswan
+    - pki
+
+- name: Configure the simulated remote site (offline demo mode)
+  hosts: gw-lab-b
+  become: true
+  roles:
+    - labsite
+
+- name: Verify the tunnel from the initiator
+  hosts: gw-onprem
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Start the CHILD_SA if it is not installed
+      ansible.builtin.shell: |
+        swanctl --list-sas --ike site-to-site 2>/dev/null | grep -q INSTALLED && echo up && exit 0
+        swanctl --initiate --child lan --timeout 30 >/dev/null 2>&1 || true
+        echo initiated
+      register: start
+      changed_when: "'initiated' in start.stdout"
+
+    - name: Wait for IKE_SA ESTABLISHED and CHILD_SA INSTALLED
+      ansible.builtin.command: swanctl --list-sas --ike site-to-site
+      register: sas
+      until: "'ESTABLISHED' in sas.stdout and 'INSTALLED' in sas.stdout"
+      retries: 12
+      delay: 5
+      changed_when: false
+
+    - name: Show negotiated algorithms
+      ansible.builtin.debug:
+        msg: "{{ sas.stdout_lines | select('search', 'ESTABLISHED|AES_GCM|INSTALLED') | list }}"
+
+- name: Verify application access from the on-prem LAN
+  hosts: client-onprem
+  gather_facts: false
+  tasks:
+    - name: Fetch the remote application through the tunnel
+      ansible.builtin.uri:
+        url: "http://{{ remote_app_ip }}"
+        return_content: true
+      register: app
+      retries: 6
+      delay: 5
+      until: app.status == 200
+
+    - name: Show which site answered
+      ansible.builtin.debug:
+        msg: "{{ app.content | regex_search('<h1>(.*)</h1>', '\\1') | first }}"
