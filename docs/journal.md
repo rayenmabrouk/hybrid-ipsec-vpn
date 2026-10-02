@@ -58,3 +58,9 @@
 - Ubuntu 26.04 utilise sudo-rs par défaut ; Ansible ne reconnaît pas son invite → ansible_become_exe: sudo.ws (sudo historique fourni par Ubuntu).
 - Rechargement d'une configuration inchangée : start_action non relancé → le handler initie explicitement la CHILD_SA côté initiateur.
 - CSR différente à chaque exécution (signature ECDSA aléatoire) → tâche marquée sans changement ; la clé reste identique.
+
+## 2026-10-02 — Test T10 : reproductibilité
+- scripts/destroy.sh (25 ressources supprimées) puis `time scripts/deploy.sh -K`.
+- Reconstruction complète sans action manuelle : 5 min 26 s (Terraform 92 s ; SSM en ligne à 96 s ; Ansible ≈ 230 s).
+- Nouvelle clé de gw-aws générée sur l'instance, certificat signé automatiquement (clé différente détectée), nouvelle EIP prise en compte par gw-onprem, tunnel ECP_384/KE1_ML_KEM_768 rétabli, application servie à client-onprem.
+- Incident corrigé : la normalisation des droits (chmod 644 récursif) avait retiré le bit exécutable du provider dans terraform/.terraform → réinitialisation.
