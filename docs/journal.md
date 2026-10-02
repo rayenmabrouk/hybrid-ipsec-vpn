@@ -75,3 +75,24 @@
 - ansible_managed n'est plus défini hors des templates (ansible-core 2.21) → commentaire statique.
 - Mot de passe Grafana contenant des espaces découpé en plusieurs arguments → module command en argv.
 - Handlers non exécutés après l'échec d'une tâche → Prometheus gardait sa configuration par défaut ; corrigé par force_handlers = True.
+
+## T5 — Panne de la passerelle AWS et reprise automatique (02/10/2026)
+
+**Protocole** : `tests/t5-failover.sh <durée>` lance un ping 1/s de client-onprem vers app-aws (10.20.2.10), arrête strongSwan sur gw-aws via SSM, attend la durée choisie, le redémarre, puis mesure l'interruption à partir des horodatages du ping (`tests/results/t5-ping.log`).
+
+| | Essai 1 | Essai 2 |
+|---|---|---|
+| Durée de la panne | ~330 s | 180 s |
+| Interruption totale du trafic | 331,8 s | 213,9 s (10:24:07 → 10:27:41) |
+| Reprise après redémarrage | 65,7 s | ≈ 34 s |
+| Courriel ALARM (SNS) | — | 10:27:33 |
+| Courriel OK (SNS) | — | 10:29:33 |
+
+**Constats**
+- Le tunnel se rétablit sans intervention : gw-onprem (initiateur) relance la négociation IKE jusqu'au retour du pair.
+- Le délai de reprise dépend de la durée de la panne, car les retransmissions IKE suivent un backoff exponentiel. Plus la panne est longue, plus le prochain essai est espacé.
+- La chaîne d'alerte fonctionne de bout en bout : métrique `VPN/TunnelUp` → alarme CloudWatch → SNS → courriel, dans les deux sens (ALARM puis OK).
+
+**Correctif apporté** : par défaut `keyingtries = 1`, si bien qu'après une panne longue l'initiateur abandonnait. Il passe à `keyingtries = 0` (essais illimités) côté initiateur dans le rôle `strongswan`.
+
+**Seule étape manuelle restante** : après une reconstruction complète (T10), le topic SNS est recréé, donc l'abonnement courriel doit être reconfirmé (lien reçu par courriel). Ce comportement est imposé par AWS et ne peut pas être automatisé.
