@@ -24,3 +24,10 @@
 - IKE bascule sur UDP 4500 sans NAT : effet de MOBIKE (RFC 4555).
 - La première CHILD_SA n'effectue pas d'échange de clés propre ; PFS hybride à chaque rekey (à démontrer en T11).
 - Avertissements « agent plugin » et « TPM 2.0 » sans impact (pas d'agent SSH ni de vTPM utilisés).
+
+## 2026-10-02 — Gate 2 : faisabilité AWS
+- Sauvegardes : dépôt poussé sur GitHub (privé) ; CA chiffrée (AES-256, gpg) hors du poste.
+- AWS Academy Learner Lab, us-east-1 : AMI officielle Ubuntu 26.04 disponible (paramètre SSM Canonical).
+- Test UDP : instance éphémère (écho socat sur UDP 500/4500, groupe de sécurité limité à l'IP publique du site) ; depuis gw-onprem, à travers WinNAT et le NAT du FAI, les deux ports répondent → IKE et NAT-T possibles.
+- Agent SSM « Online » sur Ubuntu 26.04 avec LabInstanceProfile → administration sans port SSH.
+- Ressources de test supprimées immédiatement.
