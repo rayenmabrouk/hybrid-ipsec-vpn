@@ -35,7 +35,8 @@
   tasks:
     - name: Start the CHILD_SA if it is not installed
       ansible.builtin.shell: |
-        swanctl --list-sas --ike site-to-site 2>/dev/null | grep -q INSTALLED && echo up && exit 0
+        sas=$(swanctl --list-sas --ike site-to-site 2>/dev/null)
+        case "$sas" in *INSTALLED*) echo up; exit 0 ;; esac
         swanctl --initiate --child lan --timeout 30 >/dev/null 2>&1 || true
         echo initiated
       register: start

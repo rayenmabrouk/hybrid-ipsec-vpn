@@ -1,4 +1,4 @@
 monitoring_textfile_dir: /var/lib/prometheus/node-exporter
 monitoring_aws_region: us-east-1
 monitoring_exporter_listen: 10.10.0.1:9100 # LAN side only, never the WAN interface
-grafana_admin_password: "{{ lookup('ansible.builtin.env', 'GRAFANA_ADMIN_PASSWORD') }}"
+monitoring_grafana_admin_password: "{{ lookup('ansible.builtin.env', 'GRAFANA_ADMIN_PASSWORD') }}"

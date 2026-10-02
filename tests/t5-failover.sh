@@ -16,10 +16,10 @@ ssm() {   # run a command on gw-aws through SSM and wait until it has actually b
 ssh client-onprem 'pkill -x ping || true; nohup ping -D -i 1 -W 1 10.20.2.10 > /tmp/t5-ping.log 2>&1 &'
 sleep 10
 T_STOP=$(date +%s); ssm "systemctl stop strongswan"
-echo "[T5] $(date -d @$T_STOP +%T) strongSwan stopped on gw-aws (outage ${OUTAGE}s)"
+echo "[T5] $(date -d @"$T_STOP" +%T) strongSwan stopped on gw-aws (outage ${OUTAGE}s)"
 sleep "$OUTAGE"
 T_START=$(date +%s); ssm "systemctl start strongswan"
-echo "[T5] $(date -d @$T_START +%T) strongSwan started on gw-aws"
+echo "[T5] $(date -d @"$T_START" +%T) strongSwan started on gw-aws"
 sleep 90
 ssh client-onprem 'pkill -x ping; cat /tmp/t5-ping.log' > /tmp/t5-ping.log
 

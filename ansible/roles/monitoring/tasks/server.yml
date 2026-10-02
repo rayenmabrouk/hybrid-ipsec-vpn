@@ -1,6 +1,6 @@
 - name: Check that the Grafana admin password is provided
   ansible.builtin.assert:
-    that: grafana_admin_password | length >= 12
+    that: monitoring_grafana_admin_password | length >= 12
     fail_msg: "export GRAFANA_ADMIN_PASSWORD (12+ characters) before running the playbook"
   no_log: true
 
@@ -71,6 +71,6 @@
 
 - name: Set the Grafana admin password
   ansible.builtin.command:
-    argv: [grafana, cli, --homepath, /usr/share/grafana, admin, reset-admin-password, "{{ grafana_admin_password }}"]
+    argv: [grafana, cli, --homepath, /usr/share/grafana, admin, reset-admin-password, "{{ monitoring_grafana_admin_password }}"]
   changed_when: false
   no_log: true
