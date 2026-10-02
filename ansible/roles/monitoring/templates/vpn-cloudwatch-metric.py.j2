@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+# {{ ansible_managed }}
+# Publishes VPN/TunnelUp (1 = IKE_SA established and CHILD_SA installed, 0 = down) to CloudWatch.
+# Credentials come from the instance profile (IMDSv2); no secret is stored on the instance.
+import subprocess
+
+import boto3
+
+out = subprocess.run(["swanctl", "--list-sas", "--ike", "site-to-site"],
+                     capture_output=True, text=True, check=False).stdout
+up = 1 if ("ESTABLISHED" in out and "INSTALLED" in out) else 0
+
+boto3.client("cloudwatch", region_name="{{ monitoring_aws_region }}").put_metric_data(
+    Namespace="VPN",
+    MetricData=[{
+        "MetricName": "TunnelUp",
+        "Dimensions": [{"Name": "Gateway", "Value": "{{ inventory_hostname }}"}],
+        "Value": up,
+        "Unit": "None",
+    }],
+)
+print(f"VPN/TunnelUp Gateway={{ inventory_hostname }} value={up}")

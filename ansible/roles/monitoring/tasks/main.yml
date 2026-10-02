@@ -1,0 +1,11 @@
+- name: AWS gateway - publish VPN/TunnelUp to CloudWatch
+  ansible.builtin.include_tasks: gateway_aws.yml
+  when: inventory_hostname == 'gw-aws'
+
+- name: On-prem gateway - expose tunnel metrics to Prometheus
+  ansible.builtin.include_tasks: gateway_onprem.yml
+  when: inventory_hostname == 'gw-onprem'
+
+- name: Monitoring server - Prometheus and Grafana
+  ansible.builtin.include_tasks: server.yml
+  when: inventory_hostname == 'client-onprem'

@@ -1,0 +1,46 @@
+- name: Install node_exporter
+  ansible.builtin.apt:
+    name: prometheus-node-exporter
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Listen on the LAN side only and enable the textfile collector
+  ansible.builtin.copy:
+    dest: /etc/default/prometheus-node-exporter
+    mode: "0644"
+    content: |
+      # Managed by Ansible
+      ARGS="--web.listen-address={{ monitoring_exporter_listen }} --collector.textfile.directory={{ monitoring_textfile_dir }}"
+  notify: Restart node_exporter
+
+- name: Install the textfile metric writer
+  ansible.builtin.copy:
+    src: vpn-textfile-metrics.sh
+    dest: /usr/local/bin/vpn-textfile-metrics
+    mode: "0755"
+
+- name: Install the systemd service and timer (every 15 s)
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+  loop:
+    - vpn-metric.service
+    - vpn-metric.timer
+  vars:
+    vpn_metric_command: /usr/local/bin/vpn-textfile-metrics
+    vpn_metric_interval: 15s
+  notify: Restart vpn-metric timer
+
+- name: Enable the timer
+  ansible.builtin.systemd_service:
+    name: vpn-metric.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Enable node_exporter
+  ansible.builtin.service:
+    name: prometheus-node-exporter
+    enabled: true
+    state: started

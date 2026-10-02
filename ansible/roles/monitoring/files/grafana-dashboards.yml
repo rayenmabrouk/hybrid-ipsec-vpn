@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: vpn
+    folder: VPN
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

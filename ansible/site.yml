@@ -22,6 +22,12 @@
   roles:
     - labsite
 
+- name: Monitoring (CloudWatch on AWS, Prometheus/Grafana on-prem)
+  hosts: gw-aws:gw-onprem:client-onprem
+  become: true
+  roles:
+    - monitoring
+
 - name: Verify the tunnel from the initiator
   hosts: gw-onprem
   become: true

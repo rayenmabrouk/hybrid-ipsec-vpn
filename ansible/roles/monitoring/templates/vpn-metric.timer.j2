@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Publish IPsec tunnel status metric every {{ vpn_metric_interval }}
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec={{ vpn_metric_interval }}
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

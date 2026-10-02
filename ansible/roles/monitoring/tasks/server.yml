@@ -1,0 +1,76 @@
+- name: Check that the Grafana admin password is provided
+  ansible.builtin.assert:
+    that: grafana_admin_password | length >= 12
+    fail_msg: "export GRAFANA_ADMIN_PASSWORD (12+ characters) before running the playbook"
+  no_log: true
+
+- name: Install Prometheus
+  ansible.builtin.apt:
+    name: prometheus
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Configure Prometheus scrape targets
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: /etc/prometheus/prometheus.yml
+    mode: "0644"
+    validate: promtool check config %s
+  notify: Restart prometheus
+
+- name: Add the Grafana APT repository (signed)
+  ansible.builtin.deb822_repository:
+    name: grafana
+    types: deb
+    uris: https://apt.grafana.com
+    suites: stable
+    components: main
+    signed_by: https://apt.grafana.com/gpg.key
+
+- name: Install Grafana
+  ansible.builtin.apt:
+    name: grafana
+    update_cache: true
+
+- name: Provision the Prometheus data source
+  ansible.builtin.copy:
+    src: grafana-datasource.yml
+    dest: /etc/grafana/provisioning/datasources/prometheus.yml
+    mode: "0644"
+  notify: Restart grafana
+
+- name: Provision the dashboards provider
+  ansible.builtin.copy:
+    src: grafana-dashboards.yml
+    dest: /etc/grafana/provisioning/dashboards/vpn.yml
+    mode: "0644"
+  notify: Restart grafana
+
+- name: Create the dashboards directory
+  ansible.builtin.file:
+    path: /var/lib/grafana/dashboards
+    state: directory
+    owner: grafana
+    group: grafana
+    mode: "0755"
+
+- name: Install the VPN dashboard
+  ansible.builtin.copy:
+    src: vpn-dashboard.json
+    dest: /var/lib/grafana/dashboards/vpn-dashboard.json
+    owner: grafana
+    group: grafana
+    mode: "0644"
+  notify: Restart grafana
+
+- name: Enable Grafana
+  ansible.builtin.service:
+    name: grafana-server
+    enabled: true
+    state: started
+
+- name: Set the Grafana admin password
+  ansible.builtin.command:
+    argv: [grafana, cli, --homepath, /usr/share/grafana, admin, reset-admin-password, "{{ grafana_admin_password }}"]
+  changed_when: false
+  no_log: true

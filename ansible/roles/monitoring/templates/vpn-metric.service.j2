@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Publish IPsec tunnel status metric
+After=strongswan.service
+
+[Service]
+Type=oneshot
+ExecStart={{ vpn_metric_command }}

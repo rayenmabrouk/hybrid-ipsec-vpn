@@ -64,3 +64,14 @@
 - Reconstruction complète sans action manuelle : 5 min 26 s (Terraform 92 s ; SSM en ligne à 96 s ; Ansible ≈ 230 s).
 - Nouvelle clé de gw-aws générée sur l'instance, certificat signé automatiquement (clé différente détectée), nouvelle EIP prise en compte par gw-onprem, tunnel ECP_384/KE1_ML_KEM_768 rétabli, application servie à client-onprem.
 - Incident corrigé : la normalisation des droits (chmod 644 récursif) avait retiré le bit exécutable du provider dans terraform/.terraform → réinitialisation.
+
+## 2026-10-02 — P4 : supervision
+- gw-aws : script Python (boto3, rôle d'instance, IMDSv2) publiant VPN/TunnelUp chaque minute (timer systemd) → alarme CloudWatch (Terraform) : < 1 ou absence de donnée pendant 2 min → SNS e-mail.
+- gw-onprem : node_exporter écoutant uniquement côté LAN (10.10.0.1:9100) + collecteur textfile (vpn_tunnel_up, vpn_pq_hybrid, vpn_child_sa_bytes_total) toutes les 15 s.
+- client-onprem : Prometheus + Grafana (dépôt APT signé), source de données et tableau de bord « VPN IPsec hybride » provisionnés par Ansible ; accès par tunnel SSH (port 3000 non exposé).
+- Vérifié : métrique CloudWatch = 1 chaque minute, alarme OK ; tableau de bord UP / ECP-384 + ML-KEM-768 / débit ESP.
+
+### Problèmes et solutions
+- ansible_managed n'est plus défini hors des templates (ansible-core 2.21) → commentaire statique.
+- Mot de passe Grafana contenant des espaces découpé en plusieurs arguments → module command en argv.
+- Handlers non exécutés après l'échec d'une tâche → Prometheus gardait sa configuration par défaut ; corrigé par force_handlers = True.
