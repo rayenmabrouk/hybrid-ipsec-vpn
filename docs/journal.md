@@ -128,3 +128,33 @@ Dans la trace de T6, on voit IKE_SA_INIT (ECP-384, 312 octets), puis `IKE_INTERM
 - **Déroulement** : gw-aws avait une requête DPD en cours (ID 29) et l'a retransmise vers l'ancien port. gw-onprem a détecté le changement de NAT et envoyé une mise à jour MOBIKE (`UPD_SA_ADDR`), que gw-aws a appliquée (« remote endpoint changed »). Mais strongSwan retransmet le paquet d'origine tel quel : la requête 29 est restée sans réponse, et à 11:10:20 gw-aws a supprimé l'IKE_SA (`dpd_action = clear`). gw-onprem a ensuite sondé une SA inexistante (retransmissions visibles dans Wireshark), puis a reconstruit le tunnel à 11:13:05 (`dpd_action = restart`), toujours en mode hybride.
 - **Impact** : environ 3 min d'interruption, reprise sans intervention humaine.
 - **Piste d'amélioration** : réduire le délai de détection (`charon.retransmit_timeout` et `charon.retransmit_tries`), au prix de plus de sensibilité aux pertes ponctuelles.
+
+## T7 — Révocation d'un certificat (CRL) (02/10/2026)
+- La PKI hors ligne émet un second certificat légitime pour `gw-onprem.vpn.internal` (numéro de série `10:e5:c5:c0:f5:14:1a:5a`), avec une nouvelle clé, pour simuler une passerelle volée. Elle le révoque (`pki --signcrl --reason key-compromise`) et publie `lab-ca.crl`, valable 90 jours.
+- Le rôle `pki` distribue désormais la CRL sur toutes les passerelles (`/etc/swanctl/x509crl/lab-ca.crl`), de façon idempotente.
+- gw-onprem tente l'authentification avec le certificat révoqué (`tests/configs/t7-revoked.conf`) : `N(AUTH_FAILED)`.
+- Journal de gw-aws : `crl correctly signed by … Root CA`, `certificate was revoked on Oct 02 10:27:40 UTC 2026, reason: key compromise`. Dans la même seconde, le certificat légitime (mis en cache) est vérifié : `certificate status is good`. Avant la CRL, les journaux indiquaient `certificate status is not available`.
+- Limite : la CRL doit être republiée avant son échéance (`nextUpdate`). En production, il faudrait automatiser ce renouvellement ou passer à OCSP.
+
+## T3 — Débit avec et sans tunnel (02/10/2026)
+Méthode : même client (client-onprem), même région AWS (us-east-1), même fichier de 50 Mio aléatoire (non compressible), téléchargé en HTTP ; mesures alternées pour neutraliser les variations de la ligne.
+
+| | Essai 1 | Essai 2 | Essai 3 | Moyenne |
+|---|---|---|---|---|
+| Avec tunnel (app-aws via IPsec) | 17,3 | 19,0 | 17,3 | **17,9 Mbit/s** |
+| Sans tunnel (S3 via Internet) | 18,1 | 18,6 | 20,3 | **19,0 Mbit/s** |
+
+- Surcoût mesuré : environ 6 %. Surcoût théorique d'ESP-in-UDP avec AES-GCM : IP externe 20 + UDP 8 + en-tête ESP 8 + IV 8 + trailer 2 + bourrage + ICV 16, soit environ 4 à 5 % d'un paquet de 1500 octets.
+- Le goulot d'étranglement est la ligne Internet du site (environ 20 Mbit/s), pas le chiffrement.
+- Incident de mesure : le premier essai sans tunnel a renvoyé HTTP 403, car la session Learner Lab venait d'expirer (politique `voc-cancel-cred`). Le test a été repris après redémarrage du lab.
+
+## T4 — Renouvellement des clés (rekey) sans perte (02/10/2026)
+Pendant un ping de 40 s (5 paquets par seconde) de client-onprem vers app-aws, rekey forcé de la CHILD_SA puis de l'IKE_SA (`swanctl --rekey`).
+- Résultat : 200 paquets envoyés, 200 reçus, **0 % de perte**.
+- CHILD_SA : `CREATE_CHILD_SA [ N(REKEY_SA) SA No KE TSi TSr ]`, réponse `N(ADD_KE)`, puis `IKE_FOLLOWUP_KE [ KE N(ADD_KE) ]` (fragmenté en 2). La nouvelle SA porte `ESP:AES_GCM_16-256/ECP_384/KE1_ML_KEM_768`, ce qui confirme la PFS hybride post-quantique à chaque renouvellement (RFC 9370).
+- IKE_SA : #16 → #17, même échange hybride.
+- Nuance : la première CHILD_SA, créée pendant IKE_AUTH, n'a pas d'échange de clés propre ; elle dérive ses clés de l'IKE_SA (RFC 7296). La PFS s'applique à partir du premier rekey, et la durée de vie de la CHILD_SA (1 h) borne cette fenêtre.
+
+## Résilience — Arrêt et redémarrage du Learner Lab (02/10/2026, ~11:54)
+La session Learner Lab a expiré : AWS a arrêté les instances et révoqué les identifiants. Après redémarrage du lab et mise à jour des identifiants, aucune autre action n'a été nécessaire. Les instances ont redémarré avec la même EIP, strongSwan a démarré sur gw-aws, et gw-onprem (`keyingtries = 0`) a rétabli le tunnel hybride (#16) ; l'application était de nouveau joignable.
+C'est le troisième scénario de reprise automatique, après T5 (panne de la passerelle) et le remappage NAT.
