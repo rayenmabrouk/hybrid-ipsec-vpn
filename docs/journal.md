@@ -31,3 +31,17 @@
 - Test UDP : instance éphémère (écho socat sur UDP 500/4500, groupe de sécurité limité à l'IP publique du site) ; depuis gw-onprem, à travers WinNAT et le NAT du FAI, les deux ports répondent → IKE et NAT-T possibles.
 - Agent SSM « Online » sur Ubuntu 26.04 avec LabInstanceProfile → administration sans port SSH.
 - Ressources de test supprimées immédiatement.
+
+## 2026-10-02 — P2 : infrastructure AWS (Terraform) et tunnel hybride
+- Bootstrap (scripts/bootstrap-aws.sh) : buckets S3 d'état Terraform (versionné, chiffré, privé, verrouillage natif use_lockfile) et des Flow Logs.
+- Terraform (AWS provider 6.x) : 4 modules network / gateway / app / monitoring, 30 ressources ; aucune création de rôle IAM (LabInstanceProfile).
+- gw-aws : EIP, source/dest check désactivé, IMDSv2, disque chiffré, aucun port SSH, administration via SSM ; instance NAT pour le sous-réseau privé (cloud-init).
+- app-aws : sous-réseau privé sans IP publique ; HTTP/ICMP autorisés uniquement depuis 10.10.0.0/24 ; nginx installé via le NAT de gw-aws.
+- PKI : clé de gw-aws générée sur l'instance ; CSR et certificat échangés par SSM Run Command.
+- gw-onprem bascule de gw-lab-b vers gw-aws (config du labo conservée dans /etc/swanctl/lab pour le mode démo hors ligne).
+- Résultat : IKE_SA ESTABLISHED ECP_384/KE1_ML_KEM_768, CHILD_SA TUNNEL-in-UDP (NAT-T à travers WinNAT + NAT FAI) ; client-onprem → app-aws : 0 % de perte, page servie, TTL 62 (2 passerelles).
+
+### Problèmes et solutions
+- aws_s3_bucket : refus SCP Learner Lab sur s3:GetBucketObjectLockConfiguration → bucket des Flow Logs créé hors Terraform (bootstrap).
+- Ancienne instance d'un autre projet relancée automatiquement à chaque session (coût) → détruite proprement par son propre Terraform.
+- .gitignore sans saut de ligne final → backend.hcl indexé ; corrigé avant commit.
